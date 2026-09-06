@@ -1,0 +1,13 @@
+{
+  "appId": "ai.seems.defense",
+  "appName": "SEEMS-AI",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "backgroundColor": "#020617"
+  }
+}

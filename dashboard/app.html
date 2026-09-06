@@ -1,0 +1,1570 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SEEMS-AI | Secure Authentication Gateway & Command Center</title>
+  <meta name="description" content="Production Authentication Gateway & Command Center for SEEMS-AI (Dalma Corridor NH-33, Jharkhand).">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            defense: {
+              950: '#020617',
+              900: '#090d1f',
+              850: '#0c1228',
+              800: '#0f172a',
+              700: '#1e293b',
+              600: '#334155',
+            },
+            cyber: {
+              cyan: '#06b6d4',
+              blue: '#3b82f6',
+              emerald: '#10b981',
+              amber: '#f59e0b',
+              crimson: '#ef4444',
+            }
+          },
+          fontFamily: {
+            tactical: ['Orbitron', 'monospace', 'sans-serif'],
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- Google Fonts: Orbitron & Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;800;900&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- FontAwesome 6 -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Leaflet.js CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+  <!-- React 18 & Babel for standalone execution -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      background-color: #020617;
+      background-image: 
+        radial-gradient(circle at 15% 15%, rgba(6, 182, 212, 0.05) 0%, transparent 45%),
+        radial-gradient(circle at 85% 85%, rgba(16, 185, 129, 0.04) 0%, transparent 50%),
+        radial-gradient(circle at 50% 50%, rgba(59, 130, 246, 0.03) 0%, transparent 60%);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: #f8fafc;
+      overflow-x: hidden;
+    }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.78);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(148, 163, 184, 0.15);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.45);
+    }
+
+    .hud-corner {
+      position: relative;
+    }
+    .hud-corner::before, .hud-corner::after {
+      content: '';
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      border-color: rgba(6, 182, 212, 0.6);
+      pointer-events: none;
+    }
+    .hud-corner::before {
+      top: -1px;
+      left: -1px;
+      border-top: 2px solid;
+      border-left: 2px solid;
+    }
+    .hud-corner::after {
+      bottom: -1px;
+      right: -1px;
+      border-bottom: 2px solid;
+      border-right: 2px solid;
+    }
+
+    .pulse-marker-hazard {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 32px;
+      height: 32px;
+    }
+    .pulse-marker-hazard::before {
+      content: '';
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(239, 68, 68, 0.7);
+      animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+    }
+    .pulse-marker-hazard-core {
+      position: relative;
+      width: 14px;
+      height: 14px;
+      background: #ef4444;
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      box-shadow: 0 0 12px #ef4444;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(9, 13, 31, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1e293b;
+      border-radius: 3px;
+    }
+  </style>
+</head>
+
+<body class="min-h-screen text-slate-100 selection:bg-cyan-500 selection:text-black">
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    // =========================================================================
+    // 1. TACTICAL CANVAS BACKGROUND COMPONENT
+    // =========================================================================
+    const TacticalBackground = () => {
+      const canvasRef = useRef(null);
+
+      useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animId;
+        let width = (canvas.width = canvas.offsetWidth);
+        let height = (canvas.height = canvas.offsetHeight);
+
+        const handleResize = () => {
+          if (!canvas) return;
+          width = canvas.width = canvas.offsetWidth;
+          height = canvas.height = canvas.offsetHeight;
+        };
+        window.addEventListener('resize', handleResize);
+
+        const points = [];
+        for (let i = 0; i < 28; i++) {
+          points.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            vx: (Math.random() - 0.5) * 0.35,
+            vy: (Math.random() - 0.5) * 0.35,
+            radius: Math.random() * 1.8 + 0.8,
+            alpha: Math.random() * 0.5 + 0.2
+          });
+        }
+
+        let radarAngle = 0;
+
+        const render = () => {
+          ctx.clearRect(0, 0, width, height);
+
+          // Grid
+          ctx.strokeStyle = 'rgba(148, 163, 184, 0.04)';
+          ctx.lineWidth = 1;
+          const gridSize = 48;
+          for (let x = 0; x < width; x += gridSize) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+          }
+          for (let y = 0; y < height; y += gridSize) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+          }
+
+          // Radar Rings
+          const cx = width * 0.3;
+          const cy = height * 0.65;
+          const maxRadius = Math.min(width, height) * 0.65;
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.08)';
+          for (let r = 60; r < maxRadius; r += 70) {
+            ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2); ctx.stroke();
+          }
+
+          // Radar Sweep
+          ctx.save();
+          ctx.translate(cx, cy);
+          const sweepGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, maxRadius);
+          sweepGrad.addColorStop(0, 'rgba(6, 182, 212, 0.15)');
+          sweepGrad.addColorStop(1, 'rgba(6, 182, 212, 0.0)');
+          ctx.beginPath();
+          ctx.moveTo(0, 0);
+          ctx.arc(0, 0, maxRadius, radarAngle, radarAngle + 0.35);
+          ctx.closePath();
+          ctx.fillStyle = sweepGrad;
+          ctx.fill();
+          ctx.restore();
+          radarAngle += 0.008;
+
+          // Points
+          points.forEach(pt => {
+            pt.x += pt.vx; pt.y += pt.vy;
+            if (pt.x < 0) pt.x = width; if (pt.x > width) pt.x = 0;
+            if (pt.y < 0) pt.y = height; if (pt.y > height) pt.y = 0;
+            ctx.beginPath();
+            ctx.fillStyle = `rgba(6, 182, 212, ${pt.alpha})`;
+            ctx.arc(pt.x, pt.y, pt.radius, 0, Math.PI * 2);
+            ctx.fill();
+          });
+
+          // Telemetry connecting lines
+          ctx.strokeStyle = 'rgba(6, 182, 212, 0.05)';
+          ctx.lineWidth = 0.75;
+          for (let i = 0; i < points.length; i++) {
+            for (let j = i + 1; j < points.length; j++) {
+              const dx = points[i].x - points[j].x;
+              const dy = points[i].y - points[j].y;
+              if (Math.sqrt(dx * dx + dy * dy) < 90) {
+                ctx.beginPath(); ctx.moveTo(points[i].x, points[i].y); ctx.lineTo(points[j].x, points[j].y); ctx.stroke();
+              }
+            }
+          }
+
+          // Coordinates
+          ctx.font = '9px "Orbitron", monospace';
+          ctx.fillStyle = 'rgba(148, 163, 184, 0.3)';
+          ctx.fillText('DALMA PASS: 22.8942° N, 86.2081° E', 24, height - 36);
+
+          animId = requestAnimationFrame(render);
+        };
+
+        render();
+        return () => {
+          window.removeEventListener('resize', handleResize);
+          cancelAnimationFrame(animId);
+        };
+      }, []);
+
+      return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none z-0 opacity-80" />;
+    };
+
+    // =========================================================================
+    // 2. FORGOT PASSWORD MODAL COMPONENT
+    // =========================================================================
+    const ForgotPasswordModal = ({ isOpen, onClose }) => {
+      const [email, setEmail] = useState('');
+      const [submitted, setSubmitted] = useState(false);
+      const [loading, setLoading] = useState(false);
+
+      if (!isOpen) return null;
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!email.trim()) return;
+        setLoading(true);
+        setTimeout(() => {
+          setLoading(false);
+          setSubmitted(true);
+        }, 500);
+      };
+
+      const handleClose = () => {
+        setSubmitted(false);
+        setEmail('');
+        onClose();
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
+          <div className="glass-panel max-w-md w-full rounded-2xl border border-cyan-500/30 p-6 shadow-2xl relative">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-950/60 border border-cyan-500/40 text-cyan-400">
+                  <i className="fa-solid fa-key text-xs"></i>
+                </div>
+                <div>
+                  <h3 className="font-tactical font-bold text-sm text-slate-100 uppercase tracking-wider">Reset Credentials</h3>
+                  <p className="text-[11px] font-mono text-slate-400">SEEMS-AI Security Gateway</p>
+                </div>
+              </div>
+              <button onClick={handleClose} className="p-1.5 rounded-lg bg-slate-900 text-slate-400 hover:text-white">
+                <i className="fa-solid fa-xmark"></i>
+              </button>
+            </div>
+
+            {submitted ? (
+              <div className="py-6 space-y-4 text-center">
+                <div className="w-12 h-12 mx-auto rounded-full bg-emerald-950/60 border border-emerald-500/40 flex items-center justify-center text-emerald-400 text-xl">
+                  <i className="fa-solid fa-check"></i>
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-tactical text-sm font-bold text-slate-100">Instructions Dispatched</h4>
+                  <p className="text-xs text-slate-300 max-w-xs mx-auto leading-relaxed">
+                    If an account exists for this address, password-reset instructions have been sent.
+                  </p>
+                </div>
+                <button onClick={handleClose} className="w-full py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-tactical font-bold text-xs">
+                  Return to Login
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Enter your registered Departmental ID or official Email address. If verified, cryptographic recovery instructions will be dispatched.
+                </p>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold block">
+                    User ID / Email
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="e.g. officer.dalma@forest.gov.in"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 focus:border-cyan-500 text-xs text-slate-100 outline-none"
+                  />
+                </div>
+                <div className="flex gap-2.5 pt-2">
+                  <button type="button" onClick={handleClose} className="flex-1 py-2.5 rounded-xl bg-slate-900 text-slate-300 text-xs font-mono border border-slate-700">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={loading || !email.trim()} className="flex-1 py-2.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-tactical font-bold text-xs flex items-center justify-center gap-1.5">
+                    {loading ? <span>Dispatching...</span> : <span>Send Reset Link</span>}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    // =========================================================================
+    // 3. MAIN AUTHENTICATION & GATEWAY APP
+    // =========================================================================
+    const App = () => {
+      // Global Auth State
+      const [user, setUser] = useState(() => {
+        try {
+          const raw = sessionStorage.getItem('seems_ai_session') || localStorage.getItem('seems_ai_session');
+          return raw ? JSON.parse(raw) : null;
+        } catch {
+          return null;
+        }
+      });
+
+      const [selectedRole, setSelectedRole] = useState('Forest Officer');
+      const [identifier, setIdentifier] = useState('officer.dalma@forest.gov.in');
+      const [password, setPassword] = useState('Dalma#Secure2026');
+      const [showPassword, setShowPassword] = useState(false);
+      const [rememberMe, setRememberMe] = useState(true);
+
+      const [isLoading, setIsLoading] = useState(false);
+      const [authStatus, setAuthStatus] = useState('IDLE');
+      const [errorMessage, setErrorMessage] = useState(null);
+      const [isForgotOpen, setIsForgotOpen] = useState(false);
+
+      // Dashboard Telemetry
+      const [isAlertActive, setIsAlertActive] = useState(false);
+      const [confidence, setConfidence] = useState(0);
+      const [detectedClass, setDetectedClass] = useState('Awaiting Target');
+      const [defconLevel, setDefconLevel] = useState('DEFCON 4');
+      const [highwaySpeed, setHighwaySpeed] = useState('60 KM/H');
+      const [isAudioMuted, setIsAudioMuted] = useState(false);
+      const [isThermalSim, setIsThermalSim] = useState(false);
+      const [isSmsOpen, setIsSmsOpen] = useState(false);
+      const [isQrtOpen, setIsQrtOpen] = useState(false);
+
+      const [currentTime, setCurrentTime] = useState('');
+      const [currentDate, setCurrentDate] = useState('');
+
+      const mapContainerRef = useRef(null);
+      const mapInstanceRef = useRef(null);
+      const hazardCircleRef = useRef(null);
+      const preWarningCircleRef = useRef(null);
+      const alertMarkerRef = useRef(null);
+
+      const infraCanvasRef = useRef(null);
+      const thermalCanvasRef = useRef(null);
+      const thermalAnimRef = useRef(null);
+      const elephantXRef = useRef(-80);
+
+      const audioCtxRef = useRef(null);
+      const sirenOsc1Ref = useRef(null);
+      const sirenOsc2Ref = useRef(null);
+      const sirenGainRef = useRef(null);
+      const sirenIntervalRef = useRef(null);
+
+      const DALMA_COORDS = [22.8942, 86.2081];
+
+      // Logs state
+      const [logs, setLogs] = useState([
+        {
+          id: '1',
+          time: new Date().toLocaleTimeString('en-IN', { hour12: false }),
+          type: 'SYSTEM READY',
+          title: 'Corridor Matrix Initialized',
+          desc: 'All 16 optical & acoustic edge nodes synced with Dalma Control Room. Geofence buffers active.'
+        }
+      ]);
+
+      // Clock
+      useEffect(() => {
+        const updateTime = () => {
+          const now = new Date();
+          setCurrentTime(now.toLocaleTimeString('en-IN', { hour12: false }) + ' IST');
+          setCurrentDate(now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase());
+        };
+        updateTime();
+        const t = setInterval(updateTime, 1000);
+        return () => clearInterval(t);
+      }, []);
+
+      // Login Logic
+      const handleLogin = async (e) => {
+        e.preventDefault();
+        if (!identifier.trim() || !password || isLoading) return;
+
+        setIsLoading(true);
+        setAuthStatus('VALIDATING');
+        setErrorMessage(null);
+
+        setTimeout(() => {
+          if (password.length < 4) {
+            setIsLoading(false);
+            setAuthStatus('INVALID_CREDENTIALS');
+            setErrorMessage('Invalid credentials. Please verify your ID and password.');
+            return;
+          }
+
+          let name = 'Aman Kumar (Range Officer)';
+          if (selectedRole === 'Administrator') name = 'Dr. V. Rao (Chief Conservator)';
+          else if (selectedRole === 'QRT Operator') name = 'Patrol Commander Singh';
+          else if (selectedRole === 'Analyst') name = 'Spatial AI Analyst';
+
+          const sessionUser = {
+            id: `USR-${Math.floor(1000 + Math.random() * 9000)}`,
+            email: identifier,
+            name: name,
+            role: selectedRole,
+            isDemo: false,
+            sector: 'NH-33 Dalma Corridor',
+            loginTimestamp: Date.now()
+          };
+
+          const payload = JSON.stringify(sessionUser);
+          if (rememberMe) localStorage.setItem('seems_ai_session', payload);
+          else sessionStorage.setItem('seems_ai_session', payload);
+
+          setAuthStatus('SUCCESS');
+          setIsLoading(false);
+
+          setTimeout(() => {
+            setUser(sessionUser);
+          }, 450);
+        }, 650);
+      };
+
+      // Demo Access Logic
+      const handleDemoAccess = () => {
+        setIsLoading(true);
+        setAuthStatus('VALIDATING');
+        setErrorMessage(null);
+
+        setTimeout(() => {
+          const demoUser = {
+            id: `DEMO-${Math.floor(1000 + Math.random() * 9000)}`,
+            email: `${selectedRole.toLowerCase().replace(/\s+/g, '.')}@dalma.forest.gov.in`,
+            name: selectedRole === 'Administrator' ? 'Dr. V. Rao (Chief Conservator)' :
+                  selectedRole === 'QRT Operator' ? 'Patrol Commander Singh' :
+                  selectedRole === 'Analyst' ? 'Spatial AI Analyst' : 'Aman Kumar (Range Officer)',
+            role: selectedRole,
+            isDemo: true,
+            sector: 'Dalma Pass NH-33',
+            loginTimestamp: Date.now()
+          };
+
+          sessionStorage.setItem('seems_ai_session', JSON.stringify(demoUser));
+          setAuthStatus('SUCCESS');
+          setIsLoading(false);
+
+          setTimeout(() => {
+            setUser(demoUser);
+          }, 350);
+        }, 400);
+      };
+
+      // Logout Logic
+      const handleLogout = () => {
+        sessionStorage.removeItem('seems_ai_session');
+        localStorage.removeItem('seems_ai_session');
+        stopSiren();
+        setUser(null);
+        setAuthStatus('IDLE');
+        setErrorMessage(null);
+      };
+
+      // Audio Siren Functions
+      const initAudio = () => {
+        if (!audioCtxRef.current) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          audioCtxRef.current = new AudioCtx();
+        }
+        if (audioCtxRef.current.state === 'suspended') {
+          audioCtxRef.current.resume();
+        }
+      };
+
+      const startSiren = () => {
+        if (isAudioMuted) return;
+        try {
+          initAudio();
+          stopSiren();
+          const ctx = audioCtxRef.current;
+          const gain = ctx.createGain();
+          gain.gain.setValueAtTime(0.12, ctx.currentTime);
+          gain.connect(ctx.destination);
+          sirenGainRef.current = gain;
+
+          const osc1 = ctx.createOscillator();
+          const osc2 = ctx.createOscillator();
+          osc1.type = 'sawtooth';
+          osc2.type = 'square';
+          osc1.connect(gain);
+          osc2.connect(gain);
+          osc1.start();
+          osc2.start();
+          sirenOsc1Ref.current = osc1;
+          sirenOsc2Ref.current = osc2;
+
+          let toggle = false;
+          sirenIntervalRef.current = setInterval(() => {
+            if (!audioCtxRef.current || !sirenOsc1Ref.current || !sirenOsc2Ref.current) return;
+            const now = audioCtxRef.current.currentTime;
+            sirenOsc1Ref.current.frequency.setTargetAtTime(toggle ? 920 : 640, now, 0.08);
+            sirenOsc2Ref.current.frequency.setTargetAtTime(toggle ? 460 : 320, now, 0.08);
+            toggle = !toggle;
+          }, 220);
+        } catch (e) {
+          console.warn("Audio Context init suppressed:", e);
+        }
+      };
+
+      const stopSiren = () => {
+        if (sirenIntervalRef.current) {
+          clearInterval(sirenIntervalRef.current);
+          sirenIntervalRef.current = null;
+        }
+        if (sirenOsc1Ref.current) {
+          try { sirenOsc1Ref.current.stop(); sirenOsc1Ref.current.disconnect(); } catch (e) {}
+          sirenOsc1Ref.current = null;
+        }
+        if (sirenOsc2Ref.current) {
+          try { sirenOsc2Ref.current.stop(); sirenOsc2Ref.current.disconnect(); } catch (e) {}
+          sirenOsc2Ref.current = null;
+        }
+        if (sirenGainRef.current) {
+          try { sirenGainRef.current.disconnect(); } catch (e) {}
+          sirenGainRef.current = null;
+        }
+      };
+
+      const speakVoice = () => {
+        if ('speechSynthesis' in window && !isAudioMuted) {
+          window.speechSynthesis.cancel();
+          const msg = new SpeechSynthesisUtterance("Warning! Elephant detected on highway corridor! Slow down.");
+          msg.rate = 1.0;
+          msg.pitch = 1.05;
+          window.speechSynthesis.speak(msg);
+        }
+      };
+
+      // Map Initialization on Dashboard Mount
+      useEffect(() => {
+        if (!user || !mapContainerRef.current || mapInstanceRef.current) return;
+
+        if (typeof L !== 'undefined') {
+          const map = L.map(mapContainerRef.current, {
+            center: DALMA_COORDS,
+            zoom: 13,
+            zoomControl: true,
+            attributionControl: false
+          });
+
+          L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            maxZoom: 19,
+            subdomains: 'abcd',
+          }).addTo(map);
+
+          // Dalma Sanctuary Polygon
+          L.polygon([
+            [22.9250, 86.1700],
+            [22.9400, 86.2200],
+            [22.9150, 86.2600],
+            [22.8850, 86.2500],
+            [22.8750, 86.1900],
+          ], {
+            color: '#10b981',
+            fillColor: '#10b981',
+            fillOpacity: 0.12,
+            weight: 1.5,
+            dashArray: '5, 5'
+          }).addTo(map).bindPopup("<b style='color:#10b981'>Dalma Wildlife Sanctuary</b><br><span style='font-size:11px'>Elephant Natural Migration Core Area</span>");
+
+          // NH-33 Route
+          L.polyline([
+            [22.8550, 86.1600],
+            [22.8720, 86.1820],
+            [22.8942, 86.2081],
+            [22.9100, 86.2250],
+            [22.9350, 86.2400],
+            [22.9600, 86.2600],
+          ], {
+            color: '#06b6d4',
+            weight: 4,
+            opacity: 0.85,
+            dashArray: '8, 8'
+          }).addTo(map).bindPopup("<b style='color:#06b6d4'>National Highway NH-33</b><br><span style='font-size:11px'>Ranchi-Jamshedpur Corridor</span>");
+
+          // Sensor Markers
+          [
+            { name: "Node CAM-01 (Pardih)", coords: [22.8720, 86.1820] },
+            { name: "Node CAM-04 (Dalma Pass)", coords: [22.8942, 86.2081] },
+            { name: "Node CAM-07 (Asanbani)", coords: [22.9100, 86.2250] },
+          ].forEach(pt => {
+            L.circleMarker(pt.coords, {
+              radius: 5,
+              color: '#06b6d4',
+              fillColor: '#22d3ee',
+              fillOpacity: 0.9
+            }).addTo(map).bindPopup(`<b>${pt.name}</b><br>Optical Edge AI Camera`);
+          });
+
+          // Villages
+          const vGroup = L.layerGroup();
+          [
+            { name: "Pardih Village", coords: [22.8780, 86.1750] },
+            { name: "Dimna Cluster", coords: [22.8650, 86.2300] },
+            { name: "Asanbani Basti", coords: [22.9050, 86.2350] },
+            { name: "Mirzapur Hamlet", coords: [22.8880, 86.1950] },
+            { name: "Bota Forest Post", coords: [22.9200, 86.2100] },
+          ].forEach(v => {
+            const marker = L.marker(v.coords, {
+              icon: L.divIcon({
+                className: 'custom-icon',
+                html: `<div style="background:#f59e0b; width:10px; height:10px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 8px #f59e0b;"></div>`,
+                iconSize: [10, 10],
+                iconAnchor: [5, 5]
+              })
+            }).bindPopup(`<b>${v.name}</b><br>Cell Broadcast Node`);
+            vGroup.addLayer(marker);
+          });
+          vGroup.addTo(map);
+
+          mapInstanceRef.current = map;
+        }
+
+        return () => {
+          if (mapInstanceRef.current) {
+            mapInstanceRef.current.remove();
+            mapInstanceRef.current = null;
+          }
+        };
+      }, [user]);
+
+      // Infrasound Waveform Loop
+      useEffect(() => {
+        if (!user || !infraCanvasRef.current) return;
+        const canvas = infraCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        let animId;
+        let phase = 0;
+
+        const render = () => {
+          const w = (canvas.width = canvas.offsetWidth);
+          const h = (canvas.height = canvas.offsetHeight);
+
+          ctx.fillStyle = '#020617';
+          ctx.fillRect(0, 0, w, h);
+
+          ctx.strokeStyle = 'rgba(51, 68, 121, 0.25)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (let x = 0; x < w; x += 30) { ctx.moveTo(x, 0); ctx.lineTo(x, h); }
+          for (let y = 0; y < h; y += 15) { ctx.moveTo(0, y); ctx.lineTo(w, y); }
+          ctx.stroke();
+
+          const amp = isAlertActive ? 18 : 5;
+          const freq = isAlertActive ? 0.08 : 0.03;
+          const col = isAlertActive ? '#ef4444' : '#06b6d4';
+
+          ctx.beginPath();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = isAlertActive ? 2.5 : 1.5;
+          for (let x = 0; x < w; x++) {
+            const y = h / 2 + Math.sin(x * freq + phase) * amp + Math.cos(x * 0.02 - phase * 1.5) * (amp * 0.4);
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.stroke();
+
+          phase += isAlertActive ? 0.15 : 0.04;
+          animId = requestAnimationFrame(render);
+        };
+
+        render();
+        return () => cancelAnimationFrame(animId);
+      }, [user, isAlertActive]);
+
+      // Trigger Alert Function
+      const triggerAlert = (source = "Thermal Camera Node CAM-04", conf = 0.94) => {
+        initAudio();
+        setIsAlertActive(true);
+        setConfidence(conf * 100);
+        setDetectedClass('ELEPHANT');
+        setDefconLevel('DEFCON 1');
+        setHighwaySpeed('20 KM/H');
+
+        // Draw Geofencing on Map
+        const map = mapInstanceRef.current;
+        if (map && typeof L !== 'undefined') {
+          if (hazardCircleRef.current) map.removeLayer(hazardCircleRef.current);
+          if (preWarningCircleRef.current) map.removeLayer(preWarningCircleRef.current);
+          if (alertMarkerRef.current) map.removeLayer(alertMarkerRef.current);
+
+          hazardCircleRef.current = L.circle(DALMA_COORDS, {
+            radius: 1000,
+            color: '#ef4444',
+            fillColor: '#ef4444',
+            fillOpacity: 0.28,
+            weight: 2.5,
+            dashArray: '6, 6'
+          }).addTo(map);
+
+          preWarningCircleRef.current = L.circle(DALMA_COORDS, {
+            radius: 2500,
+            color: '#f59e0b',
+            fillColor: '#f59e0b',
+            fillOpacity: 0.12,
+            weight: 2,
+            dashArray: '8, 8'
+          }).addTo(map);
+
+          alertMarkerRef.current = L.marker(DALMA_COORDS, {
+            icon: L.divIcon({
+              className: 'pulse-marker-hazard',
+              html: '<div class="pulse-marker-hazard-core"></div>',
+              iconSize: [32, 32],
+              iconAnchor: [16, 16]
+            })
+          }).addTo(map).bindPopup(`
+            <div style="font-family:monospace; font-size:11px;">
+              <b style="color:#ef4444; font-size:12px;">🚨 ELEPHANT SIGHTING ACTIVE</b><br>
+              <b>Coords:</b> 22.8942°N, 86.2081°E<br>
+              <b>Herd Size:</b> 3-5 Adults + 1 Calf<br>
+              <b>Velocity:</b> 4.2 km/h North-East
+            </div>
+          `).openPopup();
+
+          map.flyTo(DALMA_COORDS, 14, { animate: true, duration: 1.5 });
+        }
+
+        startSiren();
+        speakVoice();
+
+        const timeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
+        setLogs(prev => [
+          {
+            id: Date.now().toString(),
+            time: timeStr,
+            type: 'CRITICAL SIGHTING',
+            title: 'Elephant Herd Crossing NH-33',
+            desc: `Detection: ${source} • Confidence: ${(conf * 100).toFixed(0)}% • Loc: Dalma Wildlife Pass (22.8942° N, 86.2081° E)`,
+            highlight: 'SMS Broadcast Sent (1,240 nodes) • VMS Speed: 20 km/h'
+          },
+          ...prev
+        ]);
+      };
+
+      const resetAlert = () => {
+        setIsAlertActive(false);
+        setConfidence(0);
+        setDetectedClass('Awaiting Target');
+        setDefconLevel('DEFCON 4');
+        setHighwaySpeed('60 KM/H');
+        stopSiren();
+
+        const map = mapInstanceRef.current;
+        if (map) {
+          if (hazardCircleRef.current) { map.removeLayer(hazardCircleRef.current); hazardCircleRef.current = null; }
+          if (preWarningCircleRef.current) { map.removeLayer(preWarningCircleRef.current); preWarningCircleRef.current = null; }
+          if (alertMarkerRef.current) { map.removeLayer(alertMarkerRef.current); alertMarkerRef.current = null; }
+          map.flyTo(DALMA_COORDS, 13, { animate: true, duration: 1.2 });
+        }
+
+        const timeStr = new Date().toLocaleTimeString('en-IN', { hour12: false });
+        setLogs(prev => [
+          {
+            id: Date.now().toString(),
+            time: timeStr,
+            type: 'STATUS UPDATE',
+            title: 'Corridor All Clear / Alarm Dismissed',
+            desc: `Authorized by: ${user?.name || 'Officer'}`
+          },
+          ...prev
+        ]);
+      };
+
+      // Thermal Simulation Canvas Loop
+      useEffect(() => {
+        if (!isThermalSim || !thermalCanvasRef.current) return;
+        const canvas = thermalCanvasRef.current;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        const renderThermal = () => {
+          const w = (canvas.width = 640);
+          const h = (canvas.height = 480);
+
+          const grad = ctx.createLinearGradient(0, 0, 0, h);
+          grad.addColorStop(0, '#090a1f');
+          grad.addColorStop(0.5, '#120d2a');
+          grad.addColorStop(1, '#05030d');
+          ctx.fillStyle = grad;
+          ctx.fillRect(0, 0, w, h);
+
+          // Trees
+          ctx.fillStyle = '#081226';
+          ctx.beginPath();
+          ctx.moveTo(0, h * 0.65);
+          for (let i = 0; i <= w; i += 40) {
+            ctx.lineTo(i, h * 0.65 - (Math.sin(i * 0.05) * 20 + Math.cos(i * 0.1) * 15));
+          }
+          ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.fill();
+
+          // Road
+          ctx.fillStyle = '#1c1538';
+          ctx.beginPath();
+          ctx.moveTo(w * 0.2, h); ctx.lineTo(w * 0.45, h * 0.6);
+          ctx.lineTo(w * 0.55, h * 0.6); ctx.lineTo(w * 0.8, h);
+          ctx.fill();
+
+          // Elephant
+          elephantXRef.current += 1.2;
+          if (elephantXRef.current > w + 100) elephantXRef.current = -100;
+          const ex = elephantXRef.current;
+          const ey = h * 0.65;
+
+          ctx.save();
+          ctx.shadowColor = '#f97316';
+          ctx.shadowBlur = 18;
+          ctx.fillStyle = '#ea580c';
+          ctx.beginPath();
+          ctx.ellipse(ex + 40, ey - 20, 45, 30, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.beginPath();
+          ctx.ellipse(ex + 85, ey - 30, 22, 22, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+
+          // Bounding Box
+          if (ex > 120 && ex < w - 120) {
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(ex - 20, ey - 70, 140, 110);
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.9)';
+            ctx.fillRect(ex - 20, ey - 94, 150, 22);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px "Orbitron", monospace';
+            ctx.fillText('ELEPHANT 94%', ex - 14, ey - 78);
+
+            if (!isAlertActive) {
+              triggerAlert('Thermal Optics CAM-04 (Simulated Herd)', 0.94);
+            }
+          }
+
+          thermalAnimRef.current = requestAnimationFrame(renderThermal);
+        };
+
+        renderThermal();
+        return () => {
+          if (thermalAnimRef.current) cancelAnimationFrame(thermalAnimRef.current);
+        };
+      }, [isThermalSim, isAlertActive]);
+
+      const ROLES = [
+        { id: 'Forest Officer', label: 'Forest Officer', icon: 'fa-tree' },
+        { id: 'QRT Operator', label: 'QRT Operator', icon: 'fa-truck-monster' },
+        { id: 'Analyst', label: 'Analyst', icon: 'fa-chart-line' },
+        { id: 'Administrator', label: 'Administrator', icon: 'fa-shield-halved' }
+      ];
+
+      // =========================================================================
+      // VIEW A: LOGIN GATEWAY (IF NOT AUTHENTICATED)
+      // =========================================================================
+      if (!user) {
+        return (
+          <div className="min-h-screen flex flex-col justify-between relative bg-[#020617] text-slate-100 overflow-x-hidden">
+            <TacticalBackground />
+
+            <main className="flex-1 max-w-[1600px] w-full mx-auto p-4 sm:p-8 lg:p-12 flex items-center justify-center relative z-10">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-center w-full">
+                
+                {/* Left Side Branding */}
+                <div className="lg:col-span-7 space-y-6">
+                  <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-cyan-950/60 border border-cyan-500/30 text-cyan-300 text-xs font-mono">
+                    <span className="flex h-2 w-2 relative">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>DALMA SANCTUARY MIGRATION CORRIDOR (NH-33)</span>
+                  </div>
+
+                  <div className="space-y-2">
+                    <h1 className="font-tactical font-black text-4xl sm:text-6xl tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-emerald-300 to-amber-300">
+                      SEEMS-AI
+                    </h1>
+                    <div className="font-tactical text-sm sm:text-lg tracking-widest text-slate-300 font-semibold uppercase">
+                      WILDLIFE INTELLIGENCE PLATFORM
+                    </div>
+                    <p className="text-slate-400 text-sm sm:text-base leading-relaxed max-w-xl pt-2">
+                      «Real-time spatial intelligence for safer human–wildlife corridors.»
+                    </p>
+                  </div>
+
+                  {/* Highlights Grid */}
+                  <div className="hidden sm:grid grid-cols-2 gap-3.5 max-w-xl">
+                    <div className="glass-panel p-3.5 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="flex items-center gap-2 text-cyan-400 text-xs font-mono font-bold">
+                        <i className="fa-solid fa-microchip"></i> Edge Computer Vision
+                      </div>
+                      <p className="text-[11px] text-slate-400">Sub-50ms continuous elephant herd detection on optical grid.</p>
+                    </div>
+
+                    <div className="glass-panel p-3.5 rounded-2xl border border-slate-800 space-y-1">
+                      <div className="flex items-center gap-2 text-emerald-400 text-xs font-mono font-bold">
+                        <i className="fa-solid fa-compass"></i> Two-Tier Geo-Fencing
+                      </div>
+                      <p className="text-[11px] text-slate-400">1000m collision hazard perimeter + 2500m village buffer.</p>
+                    </div>
+                  </div>
+
+                  <div className="hidden lg:flex items-center gap-3 text-xs font-mono text-slate-500 pt-2">
+                    <i className="fa-solid fa-shield-halved text-slate-600"></i>
+                    <span>Jharkhand Forest Department • Dalma Wildlife Division • NHAI NH-33</span>
+                  </div>
+                </div>
+
+                {/* Right Side Authentication Card */}
+                <div className="lg:col-span-5 w-full flex justify-center">
+                  <div className="glass-panel rounded-3xl p-6 sm:p-8 relative overflow-hidden hud-corner max-w-md w-full mx-auto border border-slate-800/80 shadow-2xl">
+                    
+                    <div className="space-y-1.5 mb-6">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] font-mono font-bold tracking-widest text-cyan-400 bg-cyan-950/80 px-2.5 py-1 rounded border border-cyan-800/50 uppercase">
+                          GATEWAY // AUTH-01
+                        </span>
+                        <span className="text-[10px] font-mono text-slate-500">PORT 443 [TLS 1.3]</span>
+                      </div>
+                      <h2 className="font-tactical font-black text-2xl text-slate-100 tracking-wide pt-2">Welcome back</h2>
+                      <p className="text-xs text-slate-400">Sign in to access the SEEMS-AI Command Center</p>
+                    </div>
+
+                    <form onSubmit={handleLogin} className="space-y-4">
+                      
+                      {/* Role Selector */}
+                      <div className="space-y-2">
+                        <label className="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span> ACCESS LEVEL
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {ROLES.map(r => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => { setSelectedRole(r.id); setErrorMessage(null); }}
+                              className={`p-2.5 rounded-xl border text-left flex items-center gap-2.5 transition ${
+                                selectedRole === r.id ? 'bg-cyan-950/40 border-cyan-500 text-slate-100' : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700'
+                              }`}
+                            >
+                              <i className={`fa-solid ${r.icon} text-xs ${selectedRole === r.id ? 'text-cyan-400' : 'text-slate-500'}`}></i>
+                              <span className="text-xs font-semibold">{r.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Error Banner */}
+                      {errorMessage && (
+                        <div className="p-3 rounded-xl bg-red-950/80 border border-red-500/60 text-red-200 text-xs flex items-start gap-2">
+                          <i className="fa-solid fa-triangle-exclamation text-red-400 mt-0.5"></i>
+                          <span>{errorMessage}</span>
+                        </div>
+                      )}
+
+                      {/* Success Banner */}
+                      {authStatus === 'SUCCESS' && (
+                        <div className="p-3 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs flex items-center gap-2">
+                          <i className="fa-solid fa-circle-check text-emerald-400"></i>
+                          <span className="font-tactical font-bold">AUTHENTICATION SUCCESSFUL</span>
+                        </div>
+                      )}
+
+                      {/* ID / Email */}
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-mono uppercase tracking-wider text-slate-400 font-semibold block">USER ID / EMAIL</label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            required
+                            value={identifier}
+                            onChange={(e) => setIdentifier(e.target.value)}
+                            placeholder="Enter your registered ID"
+                            className="w-full pl-9 pr-4 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-100 outline-none focus:border-cyan-500"
+                          />
+                          <i className="fa-regular fa-user text-slate-500 absolute left-3 top-3 text-xs"></i>
+                        </div>
+                      </div>
+
+                      {/* Password */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center justify-between text-xs font-mono">
+                          <label className="uppercase tracking-wider text-slate-400 font-semibold">PASSWORD</label>
+                          <button type="button" onClick={() => setIsForgotOpen(true)} className="text-[11px] text-cyan-400 hover:text-cyan-300 underline">
+                            Forgot Password?
+                          </button>
+                        </div>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            required
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your password"
+                            className="w-full pl-9 pr-10 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-100 outline-none focus:border-cyan-500"
+                          />
+                          <i className="fa-solid fa-lock text-slate-500 absolute left-3 top-3 text-xs"></i>
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
+                            <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-xs`}></i>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Remember Me */}
+                      <div className="flex items-center justify-between pt-1">
+                        <label className="flex items-center gap-2 cursor-pointer select-none text-xs text-slate-400">
+                          <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="rounded bg-slate-900 border-slate-700 text-cyan-600" />
+                          <span>Persist session on this hardware terminal</span>
+                        </label>
+                      </div>
+
+                      {/* Submit */}
+                      <div className="pt-2">
+                        <button
+                          type="submit"
+                          disabled={isLoading}
+                          className="w-full py-3 rounded-xl font-tactical font-bold text-xs tracking-wider bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-950"
+                        >
+                          {isLoading ? (
+                            <>
+                              <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                              <span>AUTHENTICATING SECURE SESSION...</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>SECURE LOGIN</span>
+                              <i className="fa-solid fa-arrow-right text-xs"></i>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                    </form>
+
+                    {/* Divider */}
+                    <div className="relative my-5">
+                      <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-slate-800"></div></div>
+                      <div className="relative flex justify-center text-[10px] uppercase font-mono"><span className="bg-[#0f172a] px-3 text-slate-500">Evaluation & Review Bypass</span></div>
+                    </div>
+
+                    {/* Hackathon Demo Access */}
+                    <button
+                      type="button"
+                      onClick={handleDemoAccess}
+                      className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-cyan-300 border border-cyan-800/40 font-mono text-xs font-semibold flex items-center justify-center gap-2 transition"
+                    >
+                      <i className="fa-solid fa-wand-magic-sparkles text-cyan-400 text-xs"></i>
+                      <span>Continue with Demo Access</span>
+                    </button>
+                    <p className="text-[10px] text-slate-500 font-mono text-center mt-1.5">
+                      Demo access — restricted prototype session for hackathon jury & research evaluation
+                    </p>
+
+                    {/* Status */}
+                    <div className="pt-4 mt-4 border-t border-slate-800 flex items-center justify-between text-[11px] font-mono">
+                      <div className="flex items-center gap-2 text-emerald-400 font-semibold">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                        <span>AUTHENTICATION SERVICES ONLINE</span>
+                      </div>
+                      <span className="text-cyan-400 font-bold font-tactical">SEEMS-AI v5.2</span>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            </main>
+
+            {/* Footer */}
+            <footer className="w-full py-3 px-4 text-[10px] font-mono text-slate-500 border-t border-slate-900 bg-slate-950/80 backdrop-blur-md">
+              <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2 text-slate-400">
+                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+                  <span>AUTH NODE: DALMA-GATEWAY-01 • STATUS: READY • ENCRYPTION: ACTIVE • SESSION: SECURE</span>
+                </div>
+                <div className="text-slate-500">SEEMS-AI v5.2</div>
+              </div>
+            </footer>
+
+            <ForgotPasswordModal isOpen={isForgotOpen} onClose={() => setIsForgotOpen(false)} />
+          </div>
+        );
+      }
+
+      // =========================================================================
+      // VIEW B: PROTECTED SEEMS-AI COMMAND CENTER DASHBOARD (AUTHENTICATED)
+      // =========================================================================
+      return (
+        <div className="min-h-screen flex flex-col justify-between bg-[#020617] text-slate-100">
+          
+          {/* Header */}
+          <header className="sticky top-0 z-50 glass-panel border-b border-slate-800 px-4 lg:px-8 py-3 backdrop-blur-xl">
+            <div className="max-w-[1920px] mx-auto flex flex-wrap items-center justify-between gap-4">
+              
+              <div className="flex items-center gap-3.5">
+                <div className="relative flex items-center justify-center w-11 h-11 rounded-xl bg-slate-900 border border-cyan-500/40 shadow-lg shadow-cyan-950">
+                  <i className="fa-solid fa-satellite-dish text-cyan-400 text-lg animate-pulse"></i>
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-tactical tracking-widest text-xl font-black bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-emerald-300 to-amber-300">
+                      SEEMS-AI
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded font-mono font-semibold bg-cyan-950 text-cyan-300 border border-cyan-700/50">
+                      DALMA CORRIDOR NH-33
+                    </span>
+                    {user.isDemo && (
+                      <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-amber-950 text-amber-300 border border-amber-500/50 animate-pulse">
+                        DEMO SESSION
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-medium">Autonomous Bio-Spatial Detection & Highway Geo-Fencing Matrix</p>
+                </div>
+              </div>
+
+              {/* Right Controls */}
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="hidden sm:flex items-center gap-2.5 px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs">
+                  <div className="text-right">
+                    <div className="font-tactical font-bold text-cyan-300">{currentTime}</div>
+                    <div className="text-[9px] text-slate-500">{currentDate}</div>
+                  </div>
+                </div>
+
+                <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-tactical font-bold uppercase transition ${
+                  isAlertActive ? 'bg-red-950 border-red-500 text-red-200 shadow-xl shadow-red-950 animate-pulse' : 'bg-emerald-950/60 border-emerald-500/50 text-emerald-300'
+                }`}>
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${isAlertActive ? 'bg-red-400' : 'bg-emerald-400'} opacity-75`}></span>
+                    <span className={`relative inline-flex rounded-full h-2.5 w-2.5 ${isAlertActive ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
+                  </span>
+                  <span>{isAlertActive ? 'CRITICAL INTRUSION' : 'ZONE SECURE'}</span>
+                </div>
+
+                <button
+                  onClick={() => isAlertActive ? resetAlert() : triggerAlert("Manual Sighting Demo", 0.96)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 font-tactical font-bold text-xs"
+                >
+                  <i className="fa-solid fa-triangle-exclamation text-amber-400"></i>
+                  <span>{isAlertActive ? 'RESET ALERT' : 'SIMULATE SIGHTING'}</span>
+                </button>
+
+                <button onClick={() => setIsAudioMuted(!isAudioMuted)} className="p-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300">
+                  <i className={`fa-solid ${isAudioMuted ? 'fa-volume-xmark text-red-400' : 'fa-volume-high text-cyan-400'} text-xs`}></i>
+                </button>
+
+                {/* Officer Profile & Logout */}
+                <div className="flex items-center gap-2.5 pl-2 border-l border-slate-800">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-cyan-950 border border-cyan-500/40 flex items-center justify-center text-cyan-300 text-xs font-bold">
+                      <i className="fa-solid fa-user-shield"></i>
+                    </div>
+                    <div className="hidden md:block text-left text-xs leading-tight">
+                      <div className="font-semibold text-slate-200 truncate max-w-[130px]">{user.name}</div>
+                      <span className="text-[9px] font-mono text-cyan-400">{user.role}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleLogout}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 font-mono text-xs font-bold transition"
+                  >
+                    <i className="fa-solid fa-right-from-bracket"></i>
+                    <span className="hidden sm:inline">LOGOUT</span>
+                  </button>
+                </div>
+
+              </div>
+
+            </div>
+          </header>
+
+          {/* Emergency Alert Banner */}
+          {isAlertActive && (
+            <div className="relative z-40 bg-gradient-to-r from-red-950 via-red-900 to-amber-950 border-b-2 border-red-500 px-4 py-3 shadow-2xl animate-pulse">
+              <div className="max-w-[1920px] mx-auto flex flex-col md:flex-row items-center justify-between gap-3 text-red-100">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-600/30 border border-red-400">
+                    <i className="fa-solid fa-bullhorn text-red-300 text-base"></i>
+                  </div>
+                  <div>
+                    <span className="font-tactical font-black text-xs md:text-sm tracking-widest text-red-300 uppercase block">
+                      CRITICAL INTRUSION PROTOCOL LEVEL-1 ACTIVATED
+                    </span>
+                    <p className="text-xs text-red-100 font-medium">
+                      Elephant herd detected crossing NH-33 Dalma Pass! Highway speed restricted to <span className="font-bold text-amber-300 underline">20 km/h</span>. Automated cellular broadcast dispatched to <span className="font-bold text-amber-300">1,240 villagers</span> across 5 clusters.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button onClick={() => setIsSmsOpen(true)} className="px-3 py-1.5 rounded-lg bg-red-950 hover:bg-red-900 border border-red-400 text-xs font-mono font-bold text-red-200">
+                    VIEW SMS PAYLOAD
+                  </button>
+                  <button onClick={() => setIsQrtOpen(true)} className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 font-tactical font-bold text-xs">
+                    DISPATCH QRT
+                  </button>
+                  <button onClick={resetAlert} className="px-3 py-1.5 rounded-lg bg-slate-900 border border-slate-600 text-xs font-mono text-slate-300">
+                    DISMISS
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Main Dashboard Grid */}
+          <main className="max-w-[1920px] w-full mx-auto p-4 lg:p-6 space-y-6 flex-1">
+            
+            {/* Top 4 Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="glass-panel rounded-2xl p-4 relative overflow-hidden hud-corner">
+                <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                  <span>EDGE NODES ONLINE</span>
+                  <i className="fa-solid fa-tower-broadcast text-cyan-400"></i>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-tactical text-2xl lg:text-3xl font-black text-cyan-300">16 / 16</span>
+                  <span className="text-xs text-emerald-400 font-mono">100% OPERATIONAL</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2 font-mono">
+                  <span>Optical: 8</span><span>Thermal: 4</span><span>Seismic: 4</span>
+                </div>
+              </div>
+
+              <div className="glass-panel rounded-2xl p-4 relative overflow-hidden hud-corner">
+                <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                  <span>DETECTION CONFIDENCE</span>
+                  <i className="fa-solid fa-brain text-emerald-400"></i>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`font-tactical text-2xl lg:text-3xl font-black ${confidence > 50 ? 'text-red-400' : 'text-slate-300'}`}>
+                    {confidence.toFixed(1)}%
+                  </span>
+                  <span className={`text-xs font-mono uppercase px-2 py-0.5 rounded border ${confidence > 50 ? 'bg-red-950 text-red-300 border-red-800' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+                    {detectedClass}
+                  </span>
+                </div>
+                <div className="mt-3 w-full bg-slate-950 rounded-full h-2 overflow-hidden border border-slate-800">
+                  <div className="h-full bg-gradient-to-r from-cyan-500 via-emerald-400 to-red-500 transition-all duration-300" style={{ width: `${confidence}%` }}></div>
+                </div>
+              </div>
+
+              <div className="glass-panel rounded-2xl p-4 relative overflow-hidden hud-corner">
+                <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                  <span>CORRIDOR DEFCON LEVEL</span>
+                  <i className={`fa-solid fa-shield-halved ${isAlertActive ? 'text-red-400' : 'text-emerald-400'}`}></i>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className={`font-tactical text-2xl lg:text-3xl font-black ${isAlertActive ? 'text-red-400 animate-pulse' : 'text-emerald-400'}`}>
+                    {defconLevel}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">{isAlertActive ? 'INTERCEPTION' : 'NORMAL PATROL'}</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2 font-mono">
+                  <span>NH-33 Speed: <b className={isAlertActive ? 'text-red-400 font-black' : 'text-cyan-300'}>{highwaySpeed}</b></span>
+                  <span className={isAlertActive ? 'text-red-400 font-bold' : 'text-emerald-400 font-bold'}>{isAlertActive ? 'RESTRICTED' : 'ALL CLEAR'}</span>
+                </div>
+              </div>
+
+              <div className="glass-panel rounded-2xl p-4 relative overflow-hidden hud-corner">
+                <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                  <span>CELL BROADCAST GATEWAY</span>
+                  <i className="fa-solid fa-tower-cell text-amber-400"></i>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="font-tactical text-2xl lg:text-3xl font-black text-amber-300">
+                    {isAlertActive ? 'DISPATCHED' : 'STANDBY'}
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">5 TOWERS SYNCED</span>
+                </div>
+                <div className="mt-3 flex items-center justify-between text-[11px] text-slate-400 border-t border-slate-800 pt-2 font-mono">
+                  <span>Villages: Pardih, Dimna +3</span>
+                  <button onClick={() => setIsSmsOpen(true)} className="text-cyan-400 hover:text-cyan-300 underline">Preview SMS</button>
+                </div>
+              </div>
+            </div>
+
+            {/* Split: Left CV & Right Map */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+              
+              {/* Left Column (5 cols) */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="glass-panel rounded-3xl p-4 border border-slate-800 shadow-2xl relative overflow-hidden">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-xs font-mono">
+                    <div className="flex items-center gap-2">
+                      <span className="flex h-2 w-2 rounded-full bg-cyan-400 animate-ping"></span>
+                      <span className="font-tactical font-bold text-cyan-300">CAM-04 (NH-33 DALMA PASS)</span>
+                    </div>
+                    <span className="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">
+                      THERMAL READY
+                    </span>
+                  </div>
+
+                  <div className="relative mt-3 rounded-2xl overflow-hidden bg-slate-950 aspect-video flex items-center justify-center border border-slate-800 shadow-inner">
+                    <canvas ref={thermalCanvasRef} className="absolute inset-0 w-full h-full object-cover z-10"></canvas>
+
+                    {!isThermalSim && (
+                      <div className="absolute inset-0 z-20 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 to-slate-950 text-slate-400">
+                        <div className="w-14 h-14 rounded-2xl bg-cyan-950 border border-cyan-500/30 flex items-center justify-center text-cyan-400 text-2xl mb-3">
+                          <i className="fa-solid fa-camera"></i>
+                        </div>
+                        <p className="font-tactical tracking-wider text-sm font-bold text-slate-200 mb-1">EDGE OPTICS STANDBY</p>
+                        <p className="text-xs text-slate-400 max-w-xs mb-4">Click below to launch simulated infrared thermal tracking feed.</p>
+                        <button
+                          onClick={() => { initAudio(); setIsThermalSim(true); }}
+                          className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-slate-950 font-tactical font-bold text-xs tracking-wider transition shadow-lg shadow-cyan-950"
+                        >
+                          RUN THERMAL SIMULATION
+                        </button>
+                      </div>
+                    )}
+
+                    {isThermalSim && (
+                      <button
+                        onClick={() => setIsThermalSim(false)}
+                        className="absolute top-3 right-3 z-30 px-2.5 py-1 rounded-lg bg-red-600 text-white font-mono text-[10px] font-bold"
+                      >
+                        STOP SIM
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* VMS Billboard */}
+                <div className="glass-panel rounded-2xl p-4 border border-slate-800">
+                  <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                    <span>HIGHWAY NH-33 SMART VMS BILLBOARD</span>
+                    <span className="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800">ACTIVE</span>
+                  </div>
+                  <div className={`rounded-xl p-3 text-center border-2 transition ${isAlertActive ? 'bg-black border-red-600 animate-pulse' : 'bg-black border-slate-800'}`}>
+                    <div className={`font-tactical font-black text-sm lg:text-base tracking-widest uppercase ${isAlertActive ? 'text-red-500' : 'text-amber-400'}`}>
+                      {isAlertActive ? '⚠️ ELEPHANT CROSSING AHEAD ⚠️' : 'NH-33 DALMA CORRIDOR CLEAR'}
+                    </div>
+                    <div className={`font-mono text-xs mt-1 ${isAlertActive ? 'text-amber-300 font-bold' : 'text-emerald-400'}`}>
+                      {isAlertActive ? 'SPEED RESTRICTED: 20 KM/H | FOREST SQUAD EN ROUTE' : 'STANDARD SPEED LIMIT: 60 KM/H | DRIVE SAFELY'}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Infrasound Seismic */}
+                <div className="glass-panel rounded-2xl p-4 border border-slate-800">
+                  <div className="flex items-center justify-between mb-2 text-xs font-mono text-slate-400">
+                    <span>INFRASOUND SEISMIC SENSORS (14-24 Hz)</span>
+                    <span className={`text-[10px] px-2 py-0.5 rounded border ${isAlertActive ? 'bg-red-950 text-red-300 border-red-800 font-bold' : 'bg-slate-900 text-slate-400 border-slate-800'}`}>
+                      {isAlertActive ? 'SEISMIC RUMBLE (18 Hz)' : 'LOW RUMBLE'}
+                    </span>
+                  </div>
+                  <canvas ref={infraCanvasRef} className="w-full h-14 bg-slate-950 rounded-xl border border-slate-800"></canvas>
+                </div>
+              </div>
+
+              {/* Right Column (7 cols) */}
+              <div className="lg:col-span-7 space-y-4">
+                <div className="glass-panel rounded-3xl p-4 border border-slate-800 shadow-2xl relative overflow-hidden">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-tree text-emerald-400"></i>
+                      <span className="font-tactical font-bold text-sm tracking-wider text-slate-200">
+                        DALMA SANCTUARY GEOSPATIAL RADAR (NH-33)
+                      </span>
+                    </div>
+                    <button onClick={() => mapInstanceRef.current?.flyTo(DALMA_COORDS, 13)} className="px-2.5 py-1 rounded-lg bg-slate-900 text-cyan-300 font-mono text-xs border border-slate-700">
+                      RECENTER
+                    </button>
+                  </div>
+
+                  <div className="relative mt-3 rounded-2xl overflow-hidden border border-slate-800 h-[420px] lg:h-[480px]">
+                    <div ref={mapContainerRef} className="w-full h-full z-0"></div>
+
+                    {/* Legend */}
+                    <div className="absolute bottom-3 left-3 z-[1000] bg-slate-950/90 p-2.5 rounded-xl border border-slate-800 text-[10px] font-mono space-y-1">
+                      <div className="font-tactical font-bold text-slate-300 mb-1">RADAR LEGEND</div>
+                      <div className="flex items-center gap-2 text-red-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-red-500"></span> 1000m Collision Hazard Zone
+                      </div>
+                      <div className="flex items-center gap-2 text-amber-300">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500"></span> 2500m Village Buffer
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logs Stream */}
+                <div className="glass-panel rounded-3xl p-4 border border-slate-800 shadow-2xl">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-800 text-slate-200 font-tactical font-bold text-sm tracking-wider">
+                    <div className="flex items-center gap-2">
+                      <i className="fa-solid fa-list-check text-cyan-400"></i>
+                      <span>LIVE INCIDENT & MITIGATION DISPATCH STREAM</span>
+                    </div>
+                    <button onClick={() => setLogs([])} className="text-xs font-mono text-slate-400 hover:text-red-400 transition">
+                      <i className="fa-solid fa-trash-can mr-1"></i> CLEAR
+                    </button>
+                  </div>
+
+                  <div className="mt-3 space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {logs.map((l) => (
+                      <div key={l.id} className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-start justify-between text-xs font-mono">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${l.type === 'CRITICAL SIGHTING' ? 'bg-red-950 text-red-400 border-red-800 animate-pulse' : 'bg-emerald-950 text-emerald-400 border-emerald-800'}`}>
+                              {l.type}
+                            </span>
+                            <span className="font-semibold">{l.title}</span>
+                          </div>
+                          <p className="text-slate-400 text-[11px]">{l.desc}</p>
+                          {l.highlight && <div className="text-[10px] text-amber-300">{l.highlight}</div>}
+                        </div>
+                        <span className="text-[10px] text-slate-500">{l.time}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+          </main>
+
+          {/* SMS Modal */}
+          {isSmsOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="glass-panel max-w-lg w-full rounded-3xl border border-cyan-500/40 p-6 shadow-2xl">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <h3 className="font-tactical font-bold text-slate-100 text-sm">CELL BROADCAST SMS PAYLOAD</h3>
+                  <button onClick={() => setIsSmsOpen(false)} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                </div>
+                <div className="mt-4 p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 font-sans">
+                  <div className="p-3 rounded-xl bg-red-950/60 border border-red-700 text-slate-100 text-xs">
+                    <div className="font-bold text-amber-300 mb-1">झारखंड वन विभाग आपातकालीन चेतावनी (DALMA NH-33)</div>
+                    <p className="font-medium text-slate-200 mb-2">
+                      "सावधान! दलमा NH-33 के पास हाथियों का झुंड देखा गया है। वाहन की गति 20 किमी/घंटा रखें और जंगल की ओर न जाएं। (Jharkhand Forest Alert)"
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-5 flex gap-3">
+                  <button onClick={() => { alert("✅ SMS re-transmitted!"); setIsSmsOpen(false); }} className="flex-1 py-2.5 rounded-xl bg-amber-500 text-slate-950 font-tactical font-bold text-xs">
+                    RE-TRIGGER BROADCAST
+                  </button>
+                  <button onClick={() => setIsSmsOpen(false)} className="px-5 py-2.5 rounded-xl bg-slate-900 text-slate-300 font-mono text-xs border border-slate-700">
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* QRT Modal */}
+          {isQrtOpen && (
+            <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="glass-panel max-w-lg w-full rounded-3xl border border-red-500/50 p-6 shadow-2xl">
+                <div className="flex items-center justify-between pb-4 border-b border-slate-800">
+                  <h3 className="font-tactical font-bold text-slate-100 text-sm">QUICK RESPONSE SQUAD (QRT)</h3>
+                  <button onClick={() => setIsQrtOpen(false)} className="text-slate-400 hover:text-white"><i className="fa-solid fa-xmark"></i></button>
+                </div>
+                <div className="mt-4 space-y-2.5 font-mono text-xs">
+                  <div className="p-3 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-between">
+                    <div>
+                      <div className="font-tactical font-bold text-cyan-300">SQUAD ALPHA (Jamshedpur North)</div>
+                      <div className="text-[11px] text-slate-400">Gypsy 4x4 + Siren Beacon | ETA: 4 Mins</div>
+                    </div>
+                    <span className="px-2 py-1 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-bold">DISPATCHED</span>
+                  </div>
+                </div>
+                <div className="mt-5 flex gap-3">
+                  <button onClick={() => { alert("🚨 Squad deployment confirmed!"); setIsQrtOpen(false); }} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white font-tactical font-bold text-xs">
+                    CONFIRM DEPLOYMENT
+                  </button>
+                  <button onClick={() => setIsQrtOpen(false)} className="px-5 py-2.5 rounded-xl bg-slate-900 text-slate-300 font-mono text-xs border border-slate-700">
+                    CLOSE
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="glass-panel border-t border-slate-800 px-4 lg:px-8 py-3 text-xs text-slate-400 font-mono">
+            <div className="max-w-[1920px] mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
+                <span>SEEMS-AI v5.2 • Wildlife Intelligence Matrix (Jharkhand Corridor NH-33)</span>
+              </div>
+              <div className="text-slate-500 text-[11px]">
+                Authenticated User: <b className="text-slate-300">{user.name}</b> • Role: <b className="text-cyan-300">{user.role}</b>
+              </div>
+            </div>
+          </footer>
+
+        </div>
+      );
+    };
+
+    // Render Root App
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>

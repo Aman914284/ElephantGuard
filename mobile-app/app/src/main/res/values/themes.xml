@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.SEEMSAI" parent="android:Theme.Material.NoActionBar">
+        <item name="android:statusBarColor">@color/defense_dark</item>
+        <item name="android:navigationBarColor">@color/defense_dark</item>
+        <item name="android:windowBackground">@color/defense_dark</item>
+    </style>
+</resources>
